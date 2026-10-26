@@ -19,6 +19,7 @@ typedef struct Booking {
     char bookingType[20]; /* RESERVED or UNRESERVED */
     int adults;
     int children;
+    char bookedAt[32];
     struct Booking *prev, *next;
 } Booking;
 extern Booking *bookingHead;

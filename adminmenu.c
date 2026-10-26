@@ -1,6 +1,8 @@
 #include "adminmenu.h"
+#include <setjmp.h>
 
 #include "utils.h"
+#include "date_time.h"
 
 #include "train.h"
 #include "passenger.h"
@@ -11,6 +13,12 @@
 void adminMenu(void)
 {
     int choice;
+    volatile int invalidChoices = 0;
+    jmp_buf menu_env;
+
+    /* Each invalid nested input jumps back here, abandoning the current operation. */
+    railway_set_navigation_target(&menu_env);
+    (void)setjmp(menu_env);
 
     while(1)
     {
@@ -61,6 +69,18 @@ void adminMenu(void)
         printf("\n15. Logout");
         choice =getIntegerInput("\nEnter choice (1-15; 15 to logout): ");
 
+        if (choice >= 1 && choice <= 15) invalidChoices = 0;
+        if (choice < 1 || choice > 15) {
+            invalidChoices++;
+            printf("\nInvalid Choice (%d/3).\n", invalidChoices);
+            if (invalidChoices >= 3) {
+                railway_log_event("adminlog.txt", "admin", "LOGOUT");
+                railway_set_navigation_target(NULL);
+                printf("Three invalid admin-menu choices. Returning to Main Menu.\n");
+                return;
+            }
+            continue;
+        }
         switch(choice)
         {
             case 1:
@@ -149,14 +169,12 @@ void adminMenu(void)
             
             case 15:
             {
+                railway_log_event("adminlog.txt", "admin", "LOGOUT");
+                railway_set_navigation_target(NULL);
                 return;
             }
 
-            default:
-            {
-                printf(
-                "\nInvalid Choice\n");
-            }
+            default: break;
         }
     }
 }

@@ -3,6 +3,29 @@
 #include <limits.h>
 #include <math.h>
 #include <ctype.h>
+#include <setjmp.h>
+
+static jmp_buf *navigation_target = NULL;
+static void navigate_after_input_failure(void);
+static char last_prompt[256];
+static int repeated_prompt_count = 0;
+static void track_prompt(const char *message) {
+    const char *m = message ? message : "";
+    /* Menu choices have their own explicit retry policy in main/usermenu/adminmenu. */
+    if (strstr(m, "choice") || strstr(m, "Choice") || strstr(m, "CHOICE")) {
+        last_prompt[0] = '\0'; repeated_prompt_count = 0; return;
+    }
+    if (strncmp(last_prompt, m, sizeof last_prompt) == 0) repeated_prompt_count++;
+    else { snprintf(last_prompt, sizeof last_prompt, "%s", m); repeated_prompt_count = 1; }
+    /* A semantic validation loop has repeated the same prompt three times already. */
+    if (repeated_prompt_count >= 4) {
+        printf("Three invalid values for this field. Returning to the active menu.\n");
+        repeated_prompt_count = 0; last_prompt[0] = '\0'; navigate_after_input_failure();
+    }
+}
+void railway_set_navigation_target(jmp_buf *target) { navigation_target = target; }
+void railway_restore_navigation_target(jmp_buf *target) { navigation_target = target; }
+static void navigate_after_input_failure(void) { if (navigation_target) longjmp(*navigation_target, 1); }
 
 void initializeSystem(void)
 {
@@ -27,6 +50,7 @@ static int readLine(const char *message, char *buffer, size_t size)
     size_t len;
     int ch;
     if (!buffer || size < 2) return FAILURE;
+    track_prompt(message);
     printf("%s", message);
     fflush(stdout);
     if (!fgets(buffer, (int)size, stdin)) {
@@ -53,61 +77,67 @@ int getIntegerInput(const char *message)
 {
     char buffer[128], *end;
     long value;
-    while (1) {
+    for (int attempt = 1; attempt <= 3; ++attempt) {
         if (!readLine(message, buffer, sizeof buffer)) {
             if (feof(stdin)) return 0;
-            continue;
+            printf("Invalid input (%d/3).\n", attempt); continue;
         }
         char *p = buffer;
         while (isspace((unsigned char)*p)) p++;
-        if (*p == '\0') { printf("Input cannot be empty. Enter a whole number (e.g., 1279).\n"); continue; }
-        errno = 0;
-        value = strtol(p, &end, 10);
+        if (*p == '\0') { printf("Input cannot be empty (%d/3).\n", attempt); continue; }
+        errno = 0; value = strtol(p, &end, 10);
         while (isspace((unsigned char)*end)) end++;
         if (errno == ERANGE || end == p || *end != '\0' || value < INT_MIN || value > INT_MAX) {
-            printf("Invalid integer. Enter digits only (e.g., 1279). Enter 0 to go back where supported.\n");
-            continue;
+            printf("Invalid whole number (%d/3).\n", attempt); continue;
         }
         return (int)value;
     }
+    printf("Three invalid attempts. Returning to the active menu.\n");
+    navigate_after_input_failure();
+    return 0;
 }
 
 void getStringInput(const char *message, char *buffer, int size)
 {
-    while (1) {
+    if (!buffer || size <= 0) return;
+    for (int attempt = 1; attempt <= 3; ++attempt) {
         if (!readLine(message, buffer, (size_t)size)) {
-            if (feof(stdin)) { if (size > 0) buffer[0] = '\0'; return; }
-            continue;
+            if (feof(stdin)) { buffer[0] = '\0'; return; }
+            printf("Invalid input (%d/3).\n", attempt); continue;
         }
         char *p = buffer;
         while (isspace((unsigned char)*p)) p++;
-        if (*p == '\0') { printf("Input cannot be empty. Please try again.\n"); continue; }
+        if (*p == '\0') { printf("Input cannot be empty (%d/3).\n", attempt); continue; }
         if (p != buffer) memmove(buffer, p, strlen(p) + 1);
         return;
     }
+    buffer[0] = '\0';
+    printf("Three invalid attempts. Returning to the active menu.\n");
+    navigate_after_input_failure();
 }
 
 float getFloatInput(const char *message)
 {
     char buffer[128], *end;
     double value;
-    while (1) {
+    for (int attempt = 1; attempt <= 3; ++attempt) {
         if (!readLine(message, buffer, sizeof buffer)) {
-            if (feof(stdin)) return 0.0f;
-            continue;
+            if (feof(stdin)) return -1.0f;
+            printf("Invalid amount (%d/3).\n", attempt); continue;
         }
         char *p = buffer;
         while (isspace((unsigned char)*p)) p++;
-        if (*p == '\0') { printf("Amount cannot be empty (e.g., 125.50).\n"); continue; }
-        errno = 0;
-        value = strtod(p, &end);
+        if (*p == '\0') { printf("Amount cannot be empty (%d/3).\n", attempt); continue; }
+        errno = 0; value = strtod(p, &end);
         while (isspace((unsigned char)*end)) end++;
         if (errno == ERANGE || end == p || *end != '\0' || !isfinite(value) || value > 1.0e9 || value < -1.0e9) {
-            printf("Invalid amount. Enter a number only (e.g., 125.50).\n");
-            continue;
+            printf("Invalid amount (%d/3).\n", attempt); continue;
         }
         return (float)value;
     }
+    printf("Three invalid attempts. Returning to the active menu.\n");
+    navigate_after_input_failure();
+    return -1.0f;
 }
 
 int isValidJourneyDate(const char *date)

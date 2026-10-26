@@ -958,7 +958,6 @@ static void manageCapacity(
 
 static void manageFareDetails(Train *train)
 {
-    char buffer[50];
     float fare;
 
     for(int i = 0;
@@ -971,20 +970,9 @@ static void manageFareDetails(Train *train)
             "\n%s Fare Details\n",
             train->coaches[i].className);
 
-            printf(
-            "Fare per km (positive number, e.g., 2.50): ");
+            fare = getFloatInput("Fare per km (positive number, e.g., 2.50): ");
 
-            fgets(
-                buffer,
-                sizeof(buffer),
-                stdin);
-
-            char *endptr;
-            errno = 0;
-            fare = strtof(buffer, &endptr);
-            while (*endptr && isspace((unsigned char)*endptr)) endptr++;
-
-            if(errno == 0 && endptr != buffer && *endptr == '\0' && isfinite(fare) && fare > 0)
+            if(isfinite(fare) && fare > 0)
             {
                 train->coaches[i]
                 .farePerKM =

@@ -1,6 +1,7 @@
 #include "pnr_status.h"
 #include "reserved_booking.h"
 #include "utils.h"
+#include "date_time.h"
 
 void verifyPNRStatus(void)
 {
@@ -10,6 +11,7 @@ void verifyPNRStatus(void)
     for (Booking *b = bookingHead; b != NULL; b = b->next) {
         if (strcmp(b->bookingType, "UNRESERVED") != 0 && b->pnrNumber[0] != '\0' && strcmp(b->pnrNumber, pnr) == 0) {
             printf("\nPNR verified successfully. Ticket report follows.\n");
+            railway_print_current_time();
             printBookingTicket(b);
             return;
         }

@@ -4,6 +4,7 @@
 #include "trainschedule.h"
 #include "utils.h"
 #include "availability.h"
+#include "date_time.h"
 #include <ctype.h>
 #include <time.h>
 #include <math.h>
@@ -58,17 +59,17 @@ void printBookingTicket(const Booking *b) {
     if (strcmp(b->bookingType, "UNRESERVED") == 0) {
         printf("\n============= UNRESERVED TICKET =============\n"
                "Ticket Type     : UNRESERVED (No PNR)\n"
-               "Train           : %d - %s\nSource          : %s\nDestination     : %s\n"
+               "Train           : %d - %s\nJourney Date    : %s\nSource          : %s\nDestination     : %s\n"
                "Adults          : %d\nChildren        : %d\nDistance        : %d km\nFare Paid       : Rs. %.2f\n"
-               "Payment Status  : PAID\n=============================================\n",
-               b->trainNumber, b->trainName, b->source, b->destination,
-               b->adults, b->children, b->distance, b->fare);
+               "Payment Status  : PAID\nBooking Time    : %s\n=============================================\n",
+               b->trainNumber, b->trainName, b->journeyDate, b->source, b->destination,
+               b->adults, b->children, b->distance, b->fare, b->bookedAt[0] ? b->bookedAt : "N/A");
         return;
     }
-    printf("\n=============== RESERVED E-TICKET ===============\nPNR             : %s\nPassenger ID    : %d\nPassenger Name  : %s\nAge / Gender    : %d / %s\nTrain           : %d - %s\nSource          : %s\nDestination     : %s\nJourney Date    : %s\nDistance        : %d km\nClass           : %s\nFare Paid       : Rs. %.2f\nStatus          : %s\n=================================================\n",
+    printf("\n=============== RESERVED E-TICKET ===============\nPNR             : %s\nPassenger ID    : %d\nPassenger Name  : %s\nAge / Gender    : %d / %s\nTrain           : %d - %s\nSource          : %s\nDestination     : %s\nJourney Date    : %s\nDistance        : %d km\nClass           : %s\nFare Paid       : Rs. %.2f\nStatus          : %s\nBooking Time    : %s\n=================================================\n",
            b->pnrNumber,b->passengerId,b->passengerName,b->age,b->gender,
            b->trainNumber,b->trainName,b->source,b->destination,b->journeyDate,
-           b->distance,b->className,b->fare,statusName(b->ticketStatus));
+           b->distance,b->className,b->fare,statusName(b->ticketStatus), b->bookedAt[0] ? b->bookedAt : "N/A");
 }
 
 void initializeBookingModule(void) {
@@ -83,11 +84,11 @@ int saveBookingData(void) {
 
     for (Booking *b = bookingHead; b != NULL; b = b->next) {
         if (fprintf(fp,
-            "BOOKING_START\n%s\n%d\n%s\n%d\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%.2f\n%d\n%s\n%d\n%d\nBOOKING_END\n",
+            "BOOKING_START\n%s\n%d\n%s\n%d\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%.2f\n%d\n%s\n%d\n%d\n%s\nBOOKING_END\n",
             b->pnrNumber, b->passengerId, b->passengerName, b->age,
             b->gender, b->trainNumber, b->trainName, b->source,
             b->destination, b->journeyDate, b->distance, b->className,
-            b->fare, b->ticketStatus, b->bookingType[0] ? b->bookingType : "RESERVED", b->adults, b->children) < 0) {
+            b->fare, b->ticketStatus, b->bookingType[0] ? b->bookingType : "RESERVED", b->adults, b->children, b->bookedAt[0] ? b->bookedAt : "N/A") < 0) {
             fclose(fp);
             remove(BOOKING_TEMP_FILE);
             printf("Failed writing booking data.\n");
@@ -137,14 +138,14 @@ void loadBookingData(void) {
             if (strlen(line) >= sizeof b->bookingType) goto bad;
             strcpy(b->bookingType, line);
             READ_INT(adults); READ_INT(children); READ_LINE();
-            if (strcmp(line, "BOOKING_END") != 0) goto bad;
+            if (strcmp(line, "BOOKING_END") != 0) { if (strlen(line) >= sizeof b->bookedAt) goto bad; strcpy(b->bookedAt, line); READ_LINE(); if (strcmp(line, "BOOKING_END") != 0) goto bad; }
         }
         int validType = strcmp(b->bookingType, "RESERVED") == 0 || strcmp(b->bookingType, "UNRESERVED") == 0;
         int valid = validType && b->passengerId > 0 && b->trainNumber > 0 && b->source[0] != '\0' && b->destination[0] != '\0' && b->distance > 0 && isfinite(b->fare) && b->fare > 0.0f && b->ticketStatus >= CNF && b->ticketStatus <= CANCELLED;
         if (strcmp(b->bookingType, "UNRESERVED") == 0) {
             /* Older releases generated a PNR for unreserved tickets; normalize it away on load. */
             b->pnrNumber[0] = '\0';
-            valid = valid && strcmp(b->journeyDate, "N/A") == 0 && strcmp(b->className, "UNRES") == 0 && b->adults >= 0 && b->children >= 0 && b->adults + b->children >= 1 && b->adults + b->children <= 100;
+            valid = valid && (strcmp(b->journeyDate, "N/A") == 0 || isValidJourneyDate(b->journeyDate)) && strcmp(b->className, "UNRES") == 0 && b->adults >= 0 && b->children >= 0 && b->adults + b->children >= 1 && b->adults + b->children <= 100;
         } else {
             valid = valid && b->pnrNumber[0] != '\0' && isValidJourneyDate(b->journeyDate) && supportedClass(b->className) && b->age >= 1 && b->age <= 120 && (strcmp(b->gender, "Male") == 0 || strcmp(b->gender, "Female") == 0 || strcmp(b->gender, "Other") == 0);
             for (Booking *old = bookingHead; old; old = old->next) if (strcmp(old->pnrNumber, b->pnrNumber) == 0) valid = 0;
@@ -178,17 +179,19 @@ void bookTicket(int passengerId) {
     char source[MAX_STATION_LEN],dest[MAX_STATION_LEN],date[11];
     getStringInput("Source station: ", source, sizeof source);
     getStringInput("Destination station: ", dest, sizeof dest);
-    if (strcmp(source, dest) == 0) { printf("Source and destination must differ.\n"); return; }
-    while (1) {
+    if (strcmp(source, dest) == 0) { printf("Source and destination must differ. Returning to User Menu.\n"); return; }
+    int validDate = 0;
+    for (int attempt = 1; attempt <= 3; ++attempt) {
         getStringInput("Journey date DD:MM:YYYY: ", date, sizeof date);
-        if (isValidJourneyDate(date)) break;
-        printf("Invalid calendar date. Please retry.\n");
+        if (isValidJourneyDate(date) && railway_date_is_future(date)) { validDate = 1; break; }
+        printf("Invalid date: reserved journeys must be on a future calendar date (%d/3).\n", attempt);
     }
+    if (!validDate) { printf("Three invalid journey-date attempts. Returning to User Menu.\n"); return; }
     int matching=0;
     printf("\n--------------- AVAILABLE TRAINS ---------------\n");
     for(Train *t=trainHead;t;t=t->next) {
         int a=stationIndex(t,source), b=stationIndex(t,dest); TrainSchedule *s=scheduleFor(t->trainNumber,date);
-        if(a<0||b<0||a>=b||!s||s->status==TRAIN_CANCELLED)continue;
+        if(a<0||b<0||a>=b||!s||s->status==TRAIN_CANCELLED || !railway_reserved_cutoff_ok(date,t->stations[a].departureTime))continue;
         matching++; printf("\n%d  %s | Distance: %d km\n",t->trainNumber,t->trainName,distanceFor(t,a,b));
         for(int i=0;i<t->classCount;i++) { Availability *av=findAvailability(t->trainNumber,date,t->coaches[i].className); printf("  %-5s ",t->coaches[i].className); if(!av)printf("No inventory"); else if(av->availableSeats>0)printf("Available: %d",av->availableSeats); else if(av->availableRAC>0)printf("RAC: %d",av->availableRAC); else if(av->availableWL<wlLimitFor(t,t->coaches[i].className))printf("WL: %d",av->availableWL+1); else printf("Not available"); printf("\n"); }
     }
@@ -197,26 +200,29 @@ void bookTicket(int passengerId) {
     Train *train;
     int si, di;
     TrainSchedule *sch;
-    while (1) {
-        trainNo = getIntegerInput("\nSelect train number from the list (0 to go back): ");
+    train = NULL; si = -1; di = -1; sch = NULL;
+    for (int tries = 1; tries <= 3; ++tries) {
+        trainNo = getIntegerInput("\nSelect train number from the list (0 to return): ");
         if (trainNo == 0) return;
         train = findTrain(trainNo); si = train ? stationIndex(train, source) : -1; di = train ? stationIndex(train, dest) : -1; sch = scheduleFor(trainNo, date);
-        if (train && si >= 0 && di > si && sch && sch->status != TRAIN_CANCELLED) break;
-        printf("Invalid train for this route/date. Choose a listed train or enter 0 to go back.\n");
+        if (train && si >= 0 && di > si && sch && sch->status != TRAIN_CANCELLED && railway_reserved_cutoff_ok(date, train->stations[si].departureTime)) break;
+        train = NULL;
+        printf("Invalid train for this route/date (%d/3).\n", tries);
+        if (tries == 3) return;
     }
     printf("\nSelected: %d %s\n",train->trainNumber,train->trainName);
     for(int i=0;i<train->classCount;i++){Availability *av=findAvailability(trainNo,date,train->coaches[i].className); printf("%-5s ",train->coaches[i].className); if(!av)printf("No inventory"); else if(av->availableSeats>0)printf("Available: %d",av->availableSeats); else if(av->availableRAC>0)printf("RAC: %d",av->availableRAC); else if(av->availableWL<wlLimitFor(train,train->coaches[i].className))printf("WL: %d",av->availableWL+1); else printf("Not available"); printf("\n");}
     char className[MAX_CLASS_LEN];
     Availability *av = NULL;
     float fare = -1.0f;
-    while (1) {
-        getStringInput("Select class [SL/1A/2A/3A/3E/2S/EC/CC] (0 to go back): ", className, sizeof className);
-        if (strcmp(className, "0") == 0) return;
+    av = NULL; fare = -1.0f;
+    for (int tries = 1; tries <= 3; ++tries) {
+        getStringInput("Select class [SL/1A/2A/3A/3E/2S/EC/CC] (0 to return): ", className, sizeof className);
+        if (className[0] == '\0' || strcmp(className, "0") == 0) return;
         int allowed = strcmp(className,"SL")==0 || strcmp(className,"1A")==0 || strcmp(className,"2A")==0 || strcmp(className,"3A")==0 || strcmp(className,"3E")==0 || strcmp(className,"2S")==0 || strcmp(className,"EC")==0 || strcmp(className,"CC")==0;
-        if (!allowed) { printf("Unsupported class. Choose one of the listed classes.\n"); continue; }
-        av = findAvailability(trainNo, date, className); fare = fareFor(train, si, di, className);
-        if (av && fare >= 0) break;
-        printf("This train has no inventory for that class. Retry.\n");
+        if (allowed) { av = findAvailability(trainNo, date, className); fare = fareFor(train, si, di, className); if (av && fare >= 0) break; }
+        printf("Unsupported class or no inventory (%d/3).\n", tries);
+        if (tries == 3) return;
     }
     int status=0, paid=0;
     if(av->availableSeats>0) status=CNF;
@@ -226,6 +232,7 @@ void bookTicket(int passengerId) {
     printf("\nFare calculation: %d km x class rate = Rs. %.2f\n",distanceFor(train,si,di),fare);
     for (int tries=1; tries<=3; ++tries) {
         float entered = getFloatInput("Enter exact fare amount to pay in rupees (e.g., 125.50): ");
+        if (entered < 0.0f) { printf("Invalid payment input exhausted its three input attempts. Returning to User Menu.\n"); return; }
         if (entered >= fare - 0.005f && entered <= fare + 0.005f) { paid=1; break; }
         printf("Payment declined: amount must be Rs. %.2f. Attempt %d of 3.\n", fare, tries);
     }
@@ -255,7 +262,7 @@ void bookTicket(int passengerId) {
         printf("Memory allocation failed; no ticket created.\n");
         return;
     }
-    generateBookingPNR(b->pnrNumber); b->passengerId=passengerId; snprintf(b->passengerName,sizeof b->passengerName,"%s",passenger->passengerName); b->age=passenger->age; snprintf(b->gender,sizeof b->gender,"%s",passenger->gender); b->trainNumber=trainNo; snprintf(b->trainName,sizeof b->trainName,"%s",train->trainName); snprintf(b->source,sizeof b->source,"%s",source); snprintf(b->destination,sizeof b->destination,"%s",dest); snprintf(b->journeyDate,sizeof b->journeyDate,"%s",date); b->distance=distanceFor(train,si,di); snprintf(b->className,sizeof b->className,"%s",className); b->fare=fare; b->ticketStatus=status; snprintf(b->bookingType,sizeof b->bookingType,"RESERVED"); b->adults=1; b->children=0;
+    generateBookingPNR(b->pnrNumber); b->passengerId=passengerId; snprintf(b->passengerName,sizeof b->passengerName,"%s",passenger->passengerName); b->age=passenger->age; snprintf(b->gender,sizeof b->gender,"%s",passenger->gender); b->trainNumber=trainNo; snprintf(b->trainName,sizeof b->trainName,"%s",train->trainName); snprintf(b->source,sizeof b->source,"%s",source); snprintf(b->destination,sizeof b->destination,"%s",dest); snprintf(b->journeyDate,sizeof b->journeyDate,"%s",date); b->distance=distanceFor(train,si,di); snprintf(b->className,sizeof b->className,"%s",className); b->fare=fare; b->ticketStatus=status; snprintf(b->bookingType,sizeof b->bookingType,"RESERVED"); b->adults=1; b->children=0; railway_timestamp(b->bookedAt, sizeof b->bookedAt);
     b->next=bookingHead; if(bookingHead)bookingHead->prev=b; bookingHead=b; if (saveBookingData() != SUCCESS) { bookingHead=b->next; if (bookingHead) bookingHead->prev=NULL; if(status==CNF) av->availableSeats++; else if(status==RAC) av->availableRAC++; else av->availableWL--; saveAvailabilityData(); free(b); printf("Booking record could not be saved.\n"); return; } printBookingTicket(b);
 }
 void viewMyBookings(int passengerId) { int count=0; for(Booking *b=bookingHead;b;b=b->next)if(b->passengerId==passengerId){printBookingTicket(b);count++;} if(!count)printf("No bookings found for this user.\n"); }

@@ -9,12 +9,15 @@
 #include "reserved_booking.h"
 #include "pnr_status.h"
 #include "admin_auth.h"
+#include <setjmp.h>
 
 int loggedInPassengerId = FAILURE;
 
 int main(void)
 {
     int choice;
+    volatile int invalidChoices = 0;
+    jmp_buf main_env;
 
     initializeSystem();
 
@@ -30,8 +33,12 @@ int main(void)
 
     initializeUserModule();
 
+    (void)setjmp(main_env);
+    railway_set_navigation_target(&main_env);
+
     while(1)
     {
+        railway_set_navigation_target(&main_env);
         printf(
         "\n========== MAIN MENU ==========");
 
@@ -54,6 +61,16 @@ int main(void)
         getIntegerInput(
         "\nEnter Choice (0-4): ");
 
+        if (choice >= 0 && choice <= 4) invalidChoices = 0;
+        if (choice < 0 || choice > 4) {
+            invalidChoices++;
+            printf("\nInvalid Choice (%d/3).\n", invalidChoices);
+            if (invalidChoices >= 3) {
+                printf("Three invalid main-menu choices. Staying in Main Menu.\n");
+                invalidChoices = 0;
+            }
+            continue;
+        }
         switch(choice)
         {
             case 1:
@@ -104,11 +121,7 @@ int main(void)
                 return 0;
             }
 
-            default:
-            {
-                printf(
-                "\nInvalid Choice\n");
-            }
+            default: break;
         }
     }
 

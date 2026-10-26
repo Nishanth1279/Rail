@@ -13,6 +13,7 @@ int confirmRefundAmount(float farePaid, float refundAmount)
     printf("Refundable amount             : Rs. %.2f\n", refundAmount);
     for (int attempt = 1; attempt <= 3; ++attempt) {
         float entered = getFloatInput("Enter the exact refundable amount to confirm (Rs.) : ");
+        if (entered < 0.0f) { printf("Invalid refund input exhausted its three input attempts. Cancellation was not performed.\n"); return 0; }
         if (entered >= refundAmount - 0.005f && entered <= refundAmount + 0.005f) {
             printf("Refund amount confirmed.\n");
             return 1;

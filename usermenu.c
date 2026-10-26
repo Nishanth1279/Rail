@@ -4,10 +4,17 @@
 #include "reserved_booking.h"
 #include "unreserved_booking.h"
 #include "availability.h"
+#include "date_time.h"
+#include "user.h"
+#include <setjmp.h>
 
 void userMenu(int passengerId)
 {
     int choice;
+    volatile int invalidChoices = 0;
+    jmp_buf menu_env;
+    railway_set_navigation_target(&menu_env);
+    (void)setjmp(menu_env);
 
     while(1)
     {
@@ -30,6 +37,20 @@ void userMenu(int passengerId)
         getIntegerInput(
         "\nEnter choice (0-8; 0 to logout): ");
 
+        if (choice >= 0 && choice <= 8) invalidChoices = 0;
+        if (choice < 0 || choice > 8) {
+            invalidChoices++;
+            printf("\nInvalid Choice (%d/3).\n", invalidChoices);
+            if (invalidChoices >= 3) {
+                User *u = userHead;
+                while (u && u->passengerId != passengerId) u = u->next;
+                railway_log_event("userlog.txt", u ? u->username : "unknown", "LOGOUT");
+                railway_set_navigation_target(NULL);
+                printf("Three invalid user-menu choices. Returning to Main Menu.\n");
+                return;
+            }
+            continue;
+        }
         switch(choice)
         {
             case 1:
@@ -65,10 +86,15 @@ void userMenu(int passengerId)
                 break;
 
             case 0:
+            {
+                User *u = userHead;
+                while (u && u->passengerId != passengerId) u = u->next;
+                railway_log_event("userlog.txt", u ? u->username : "unknown", "LOGOUT");
+                railway_set_navigation_target(NULL);
                 return;
+            }
 
-            default:
-                printf("\nInvalid Choice\n");
+            default: break;
         }
     }
 }

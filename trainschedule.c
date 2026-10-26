@@ -6,6 +6,7 @@
 #include "train.h"
 #include "utils.h"
 #include "availability.h"
+#include "date_time.h"
 
 #define SCHEDULE_FILE "trainschedule.txt"
 #define SCHEDULE_TEMP_FILE "trainschedule.txt.tmp"
@@ -368,116 +369,102 @@ void saveTrainScheduleData(void)
 void addTrainSchedule(void)
 {
     TrainSchedule *newNode;
-
     char journeyDate[11];
+    int attempt;
+    int type;
+    int valid;
 
-    newNode =
-    (TrainSchedule *)malloc(
-    sizeof(TrainSchedule));
-
-    if(newNode == NULL)
-    {
-        printf(
-        "\nMemory Allocation Failed\n");
-
+    newNode = (TrainSchedule *)malloc(sizeof(TrainSchedule));
+    if (newNode == NULL) {
+        printf("\nMemory Allocation Failed\n");
         return;
     }
+    memset(newNode, 0, sizeof(*newNode));
 
-    while(1)
-    {
-        newNode->trainNumber =
-        getIntegerInput(
-        "\nTrain number: ");
-
-        if(trainExists(
-           newNode->trainNumber))
-        {
+    valid = 0;
+    for (attempt = 1; attempt <= 3; ++attempt) {
+        newNode->trainNumber = getIntegerInput("\nTrain number: ");
+        if (newNode->trainNumber > 0 && trainExists(newNode->trainNumber)) {
+            valid = 1;
             break;
         }
-
-        printf(
-        "Train Not Found.\n");
+        printf("Invalid train number or train not found (%d/3).\n", attempt);
     }
-
-    while(1)
-    {
-        getStringInput(
-        "Journey date DD:MM:YYYY: ",
-        journeyDate,
-        11);
-
-        if(validateJourneyDate(
-           journeyDate))
-        {
-            break;
-        }
-
-        printf(
-        "Invalid Date.\n");
-    }
-
-    if(scheduleExists(
-       newNode->trainNumber,
-       journeyDate))
-    {
-        printf(
-        "\nSchedule Already Exists\n");
-
+    if (!valid) {
+        printf("Three invalid attempts. Returning to Admin Menu.\n");
         free(newNode);
-
         return;
     }
 
-    strcpy(
-    newNode->journeyDate,
-    journeyDate);
+    printf("\n1. Running (schedule at least one calendar month ahead)");
+    printf("\n2. Special (schedule at least 7 days ahead)\n");
+    valid = 0;
+    for (attempt = 1; attempt <= 3; ++attempt) {
+        type = getIntegerInput("Schedule type (1=Running, 2=Special): ");
+        if (type == 1 || type == 2) {
+            valid = 1;
+            break;
+        }
+        printf("Choose 1 or 2 (%d/3).\n", attempt);
+    }
+    if (!valid) {
+        printf("Three invalid attempts. Returning to Admin Menu.\n");
+        free(newNode);
+        return;
+    }
+    newNode->status = (type == 2) ? TRAIN_SPECIAL : TRAIN_RUNNING;
 
-    printf("\n1. Running");
-printf("\n2. Special");
-
-while (1) {
-    int type = getIntegerInput("\nSchedule type (1=Running, 2=Special): ");
-    if (type == 1 || type == 2) { newNode->status = type; break; }
-    printf("Choose 1 or 2.\n");
-}
-
-if(newNode->status == 2)
-{
-    newNode->status =
-        TRAIN_SPECIAL;
-}
-else
-{
-    newNode->status =
-        TRAIN_RUNNING;
-}
-
-newNode->delayMinutes = 0;
-    
-    newNode->prev = NULL;
-
-    newNode->next =
-        scheduleHead;
-
-    if(scheduleHead != NULL)
-    {
-        scheduleHead->prev =
-            newNode;
+    valid = 0;
+    for (attempt = 1; attempt <= 3; ++attempt) {
+        journeyDate[0] = '\0';
+        getStringInput("Journey date DD:MM:YYYY: ", journeyDate,
+                       (int)sizeof(journeyDate));
+        if (validateJourneyDate(journeyDate) &&
+            railway_schedule_lead_time_ok(journeyDate, type)) {
+            valid = 1;
+            break;
+        }
+        if (validateJourneyDate(journeyDate)) {
+            if (type == 1) {
+                printf("Regular train schedules must be at least one calendar month ahead (%d/3).\n", attempt);
+            } else {
+                printf("Special train schedules must be at least 7 days ahead (%d/3).\n", attempt);
+            }
+        } else {
+            printf("Invalid calendar date. Use DD:MM:YYYY (%d/3).\n", attempt);
+        }
+    }
+    if (!valid) {
+        printf("Three invalid attempts. Returning to Admin Menu.\n");
+        free(newNode);
+        return;
     }
 
-    scheduleHead =newNode;
-        
-    printf("\nSchedule Added Successfully\n");
+    if (scheduleExists(newNode->trainNumber, journeyDate)) {
+        printf("\nSchedule Already Exists\n");
+        free(newNode);
+        return;
+    }
+
+    (void)strncpy(newNode->journeyDate, journeyDate,
+                  sizeof(newNode->journeyDate) - 1U);
+    newNode->journeyDate[sizeof(newNode->journeyDate) - 1U] = '\0';
+    newNode->delayMinutes = 0;
+    newNode->prev = NULL;
+    newNode->next = scheduleHead;
+    if (scheduleHead != NULL) {
+        scheduleHead->prev = newNode;
+    }
+    scheduleHead = newNode;
 
     saveTrainScheduleData();
-
-Train *train = findTrain(newNode->trainNumber);
-
-if (train != NULL)
-{
-    createAvailabilityRecord(train, newNode->journeyDate);
-}
-
+    {
+        Train *train = findTrain(newNode->trainNumber);
+        if (train != NULL) {
+            createAvailabilityRecord(train, newNode->journeyDate);
+        }
+    }
+    printf("\nSchedule Added Successfully\n");
 }
 
 /*=========================================================

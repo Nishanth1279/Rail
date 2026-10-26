@@ -1,9 +1,11 @@
+#define _POSIX_C_SOURCE 200809L
 #include "unreserved_booking.h"
 #include "reserved_booking.h"
 #include "train.h"
 #include "trainschedule.h"
 #include "utils.h"
 #include "availability.h"
+#include "date_time.h"
 #include <ctype.h>
 
 static int findStation(const Train *t, const char *name)
@@ -19,16 +21,20 @@ static int routeDistance(const Train *t, int from, int to)
     return d < 0 ? -d : d;
 }
 
-static int hasActiveSchedule(int trainNo)
+static int hasActiveSchedule(int trainNo, const char *date, const char *source, const Train *train)
 {
+    int from = findStation(train, source);
+    if (from < 0 || !railway_departure_is_future_today(date, train->stations[from].departureTime)) return 0;
     for (TrainSchedule *s = scheduleHead; s; s = s->next)
-        if (s->trainNumber == trainNo && s->status != TRAIN_CANCELLED) return 1;
+        if (s->trainNumber == trainNo && strcmp(s->journeyDate, date) == 0 && s->status != TRAIN_CANCELLED) return 1;
     return 0;
 }
 
 void bookUnreservedTicket(int passengerId)
 {
-    char source[MAX_STATION_LEN], destination[MAX_STATION_LEN];
+    char source[MAX_STATION_LEN], destination[MAX_STATION_LEN], today[11];
+    time_t now = time(NULL); struct tm localNow; localtime_r(&now, &localNow);
+    strftime(today, sizeof today, "%d:%m:%Y", &localNow);
     int matchCount = 0;
     for (;;) {
         getStringInput("Source station (enter 0 to cancel): ", source, sizeof source);
@@ -36,48 +42,55 @@ void bookUnreservedTicket(int passengerId)
         getStringInput("Destination station (enter 0 to cancel): ", destination, sizeof destination);
         if (strcmp(destination, "0") == 0) return;
         if (strcmp(source, destination) == 0) {
-            printf("Source and destination must differ. Retry.\n");
-            continue;
+            printf("Source and destination must differ.\n");
+            return;
         }
         matchCount = 0;
         printf("\nScheduled trains serving this route:\n");
         for (Train *t = trainHead; t; t = t->next) {
             int from = findStation(t, source), to = findStation(t, destination);
-            if (from >= 0 && to > from && hasActiveSchedule(t->trainNumber)) {
+            if (from >= 0 && to > from && hasActiveSchedule(t->trainNumber, today, source, t)) {
                 printf("Train %d - %s | Distance: %d km\n", t->trainNumber, t->trainName, routeDistance(t, from, to));
                 ++matchCount;
             }
         }
         if (matchCount > 0) break;
-        printf("No scheduled train contains both stations in that order. Re-enter the route or enter 0 to cancel.\n");
+        printf("No future train found for this route today. Returning to User Menu.\n");
+        return;
     }
 
     int typeChoice;
-    while (1) {
+    for (int tries = 1; tries <= 3; ++tries) {
         typeChoice = getIntegerInput("\nTrain type (1. EXP, 2. SUPERFAST; 0 to cancel): ");
         if (typeChoice == 0) return;
         if (typeChoice == 1 || typeChoice == 2) break;
-        printf("Choose 1 for EXP or 2 for SUPERFAST.\n");
+        printf("Choose 1 for EXP or 2 for SUPERFAST (%d/3).\n", tries);
+        if (tries == 3) return;
     }
 
     int trainNo, from, to;
     Train *train;
-    while (1) {
+    train = NULL; from = -1; to = -1;
+    for (int tries = 1; tries <= 3; ++tries) {
         trainNo = getIntegerInput("Select train number from the list above (0 to cancel): ");
         if (trainNo == 0) return;
         train = findTrain(trainNo);
         from = train ? findStation(train, source) : -1;
         to = train ? findStation(train, destination) : -1;
-        if (train && from >= 0 && to > from && hasActiveSchedule(trainNo)) break;
-        printf("Choose a train number from the displayed route list.\n");
+        if (train && from >= 0 && to > from && hasActiveSchedule(trainNo, today, source, train)) break;
+        train = NULL;
+        printf("Choose a train number from the displayed route list (%d/3).\n", tries);
+        if (tries == 3) return;
     }
 
     int adults, children;
-    while (1) {
+    adults = children = -1;
+    for (int tries = 1; tries <= 3; ++tries) {
         adults = getIntegerInput("Number of adults (0 or more, e.g., 2): ");
         children = getIntegerInput("Number of children (0 or more, e.g., 1): ");
         if (adults >= 0 && children >= 0 && adults + children >= 1 && adults <= 100 && children <= 100 && adults + children <= 100) break;
-        printf("Invalid passenger counts. Total must be 1-100; each count must be non-negative. Retry.\n");
+        printf("Invalid passenger counts; total must be 1-100 (%d/3).\n", tries);
+        if (tries == 3) return;
     }
 
     int distance = routeDistance(train, from, to);
@@ -98,6 +111,7 @@ void bookUnreservedTicket(int passengerId)
     int paid = 0;
     for (int tries = 1; tries <= 3; ++tries) {
         float amount = getFloatInput("Enter exact fare amount to pay in rupees (e.g., 125.50): ");
+        if (amount < 0.0f) { printf("Invalid payment input exhausted its three input attempts. Returning to User Menu.\n"); return; }
         if (amount >= fare - 0.005f && amount <= fare + 0.005f) { paid = 1; break; }
         printf("Payment declined. Enter Rs. %.2f exactly (attempt %d of 3).\n", fare, tries);
     }
@@ -117,7 +131,7 @@ void bookUnreservedTicket(int passengerId)
     snprintf(b->trainName, sizeof b->trainName, "%.35s %.9s", train->trainName, typeName);
     snprintf(b->source, sizeof b->source, "%s", source);
     snprintf(b->destination, sizeof b->destination, "%s", destination);
-    snprintf(b->journeyDate, sizeof b->journeyDate, "N/A");
+    snprintf(b->journeyDate, sizeof b->journeyDate, "%s", today);
     b->distance = distance;
     snprintf(b->className, sizeof b->className, "UNRES");
     b->fare = fare;
@@ -125,6 +139,7 @@ void bookUnreservedTicket(int passengerId)
     snprintf(b->bookingType, sizeof b->bookingType, "UNRESERVED");
     b->adults = adults;
     b->children = children;
+    railway_timestamp(b->bookedAt, sizeof b->bookedAt);
 
     b->next = bookingHead;
     if (bookingHead) bookingHead->prev = b;

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "utils.h"
+#include "date_time.h"
 #include "admin_auth.h"
 
 #define ADMIN_FILE "admin.txt"
@@ -49,6 +50,7 @@ int adminLogin(void)
         getStringInput("Admin password: ", password, sizeof password);
         if (strcmp(username, storedUser) == 0 && strcmp(password, storedPass) == 0) {
             printf("Admin login successful.\n");
+            railway_log_event("adminlog.txt", storedUser, "LOGIN");
             return SUCCESS;
         }
         printf("Invalid admin credentials (%d/3).\n", attempt);

@@ -1,6 +1,7 @@
 #include "user.h"
 #include "passenger.h"
 #include "utils.h"
+#include "date_time.h"
 
 #define USER_FILE "users.txt"
 
@@ -173,6 +174,7 @@ int registerUser(void)
     saveUserData();
 
     printf("\nRegistration Successful\n");
+    railway_log_event("userlog.txt", newUser->username, "REGISTER");
 
     return newUser->passengerId;
 
@@ -195,6 +197,7 @@ int loginUser(void)
                 strcmp(current->password, password) == 0)
             {
                 printf("\nLogin Successful\n");
+                railway_log_event("userlog.txt", current->username, "LOGIN");
                 return current->passengerId;
             }
             current = current->next;
