@@ -871,9 +871,10 @@ static void manageCoachDetails(Train *train)
     }
 
     for (int i = 0; i < train->classCount; i++) {
-        int duplicate;
+        
         printf("\nClass %d\n", i + 1);
         while (1) {
+            int duplicate;
             getStringInput("Class Name [SL/1A/2A/3A/3E/2S/EC/CC]: ", train->coaches[i].className, MAX_CLASS_LEN);
             duplicate = 0;
             if (!allowedClassName(train->coaches[i].className)) {
@@ -1045,9 +1046,10 @@ static void updateCoachDetails(
 
     for (int i = 0; i < train->classCount; i++)
     {
-        int duplicate;
+        
         printf("\nCLASS %d\n", i + 1);
         while (1) {
+            int duplicate;
             getStringInput("Class Name [SL/1A/2A/3A/3E/2S/EC/CC]: ", train->coaches[i].className, MAX_CLASS_LEN);
             duplicate = !allowedClassName(train->coaches[i].className);
             for (int j = 0; j < i; ++j) if (strcmp(train->coaches[j].className, train->coaches[i].className) == 0) duplicate = 1;
@@ -1291,7 +1293,7 @@ void viewTrainDetails(void)
     PENDING MODULES
 =========================================================*/
 static void displayTrain(
-    Train *train)
+    const Train *train)
 {
     printf(
     "\n================================");
@@ -1326,11 +1328,6 @@ void searchTrain(void)
     int choice;
 
     Train *current;
-
-    char trainName[MAX_NAME_LEN];
-
-    char source[MAX_STATION_LEN];
-    char destination[MAX_STATION_LEN];
 
     choice =
         getIntegerInput(
@@ -1377,6 +1374,7 @@ void searchTrain(void)
 
         case 2:
         {
+            char trainName[MAX_NAME_LEN];
             getStringInput(
                 "Enter Train Name : ",
                 trainName,
@@ -1414,6 +1412,8 @@ void searchTrain(void)
 
         case 3:
 {
+    char source[MAX_STATION_LEN];
+    char destination[MAX_STATION_LEN];
     getStringInput(
         "Source station: ",
         source,

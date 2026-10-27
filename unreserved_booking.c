@@ -35,8 +35,9 @@ void bookUnreservedTicket(int passengerId)
     char source[MAX_STATION_LEN], destination[MAX_STATION_LEN], today[11];
     time_t now = time(NULL); struct tm localNow; localtime_r(&now, &localNow);
     strftime(today, sizeof today, "%d:%m:%Y", &localNow);
-    int matchCount = 0;
+    
     for (;;) {
+        int matchCount = 0;
         getStringInput("Source station (enter 0 to cancel): ", source, sizeof source);
         if (strcmp(source, "0") == 0) return;
         getStringInput("Destination station (enter 0 to cancel): ", destination, sizeof destination);
@@ -68,11 +69,12 @@ void bookUnreservedTicket(int passengerId)
         if (tries == 3) return;
     }
 
-    int trainNo, from, to;
-    Train *train;
-    train = NULL; from = -1; to = -1;
+    int from, to;
+    const Train *train = NULL;
+    from = -1;
+    to = -1;
     for (int tries = 1; tries <= 3; ++tries) {
-        trainNo = getIntegerInput("Select train number from the list above (0 to cancel): ");
+        int trainNo = getIntegerInput("Select train number from the list above (0 to cancel): ");
         if (trainNo == 0) return;
         train = findTrain(trainNo);
         from = train ? findStation(train, source) : -1;

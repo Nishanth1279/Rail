@@ -14,29 +14,123 @@
 Booking *bookingHead = NULL;
 static unsigned long pnrCounter = 1;
 
-static TrainSchedule *scheduleFor(int no, const char *date) {
-    TrainSchedule *s=scheduleHead;
-    while(s){ if(s->trainNumber==no && strcmp(s->journeyDate,date)==0) return s; s=s->next; }
+static const TrainSchedule *scheduleFor(int no, const char *date)
+{
+    const TrainSchedule *s = scheduleHead;
+
+    while (s != NULL)
+    {
+        if (s->trainNumber == no &&
+            strcmp(s->journeyDate, date) == 0)
+        {
+            return s;
+        }
+
+        s = s->next;
+    }
+
     return NULL;
 }
-static Passenger *passengerFor(int id) {
-    Passenger *p=passengerHead; while(p){ if(p->passengerId==id) return p; p=p->next; } return NULL;
+static const Passenger *passengerFor(int id)
+{
+    const Passenger *p = passengerHead;
+
+    while (p != NULL)
+    {
+        if (p->passengerId == id)
+        {
+            return p;
+        }
+
+        p = p->next;
+    }
+
+    return NULL;
 }
-static int stationIndex(Train *t,const char *name) {
-    for(int i=0;i<t->totalStations;i++) if(strcmp(t->stations[i].stationName,name)==0) return i;
+static int stationIndex(const Train *t, const char *name)
+{
+    int i;
+
+    if ((t == NULL) || (name == NULL))
+    {
+        return -1;
+    }
+
+    for (i = 0; i < t->totalStations; i++)
+    {
+        if (strcmp(t->stations[i].stationName, name) == 0)
+        {
+            return i;
+        }
+    }
+
     return -1;
 }
-static int distanceFor(Train *t,int a,int b) {
-    int d=t->stations[b].distanceFromSource-t->stations[a].distanceFromSource;
-    return d<0?-d:d;
+static int distanceFor(const Train *t, int a, int b)
+{
+    int distance;
+
+    if ((t == NULL) ||
+        (a < 0) ||
+        (b < 0) ||
+        (a >= t->totalStations) ||
+        (b >= t->totalStations))
+    {
+        return -1;
+    }
+
+    distance = t->stations[b].distanceFromSource -
+               t->stations[a].distanceFromSource;
+
+    return (distance < 0) ? -distance : distance;
 }
-static float fareFor(Train *t,int a,int b,const char *className) {
-    int d=distanceFor(t,a,b);
-    for(int i=0;i<t->classCount;i++) if(strcmp(t->coaches[i].className,className)==0) return d*t->coaches[i].farePerKM;
+static float fareFor(const Train *t,
+                     int a,
+                     int b,
+                     const char *className)
+{
+    int distance;
+    int i;
+
+    if ((t == NULL) || (className == NULL))
+    {
+        return -1.0f;
+    }
+
+    distance = distanceFor(t, a, b);
+
+    if (distance < 0)
+    {
+        return -1.0f;
+    }
+
+    for (i = 0; i < t->classCount; i++)
+    {
+        if (strcmp(t->coaches[i].className, className) == 0)
+        {
+            return (float)distance * t->coaches[i].farePerKM;
+        }
+    }
+
     return -1.0f;
 }
-static int wlLimitFor(Train *t,const char *className) {
-    for(int i=0;i<t->classCount;i++) if(strcmp(t->coaches[i].className,className)==0) return t->coaches[i].wlCapacity;
+static int wlLimitFor(const Train *t, const char *className)
+{
+    int i;
+
+    if ((t == NULL) || (className == NULL))
+    {
+        return 0;
+    }
+
+    for (i = 0; i < t->classCount; i++)
+    {
+        if (strcmp(t->coaches[i].className, className) == 0)
+        {
+            return t->coaches[i].wlCapacity;
+        }
+    }
+
     return 0;
 }
 void generateBookingPNR(char out[20]) {
@@ -55,21 +149,25 @@ static int supportedClass(const char *name) {
     return 0;
 }
 
-void printBookingTicket(const Booking *b) {
-    if (strcmp(b->bookingType, "UNRESERVED") == 0) {
+void printBookingTicket(const Booking *booking) {
+    if (strcmp(booking->bookingType, "UNRESERVED") == 0) {
         printf("\n============= UNRESERVED TICKET =============\n"
                "Ticket Type     : UNRESERVED (No PNR)\n"
                "Train           : %d - %s\nJourney Date    : %s\nSource          : %s\nDestination     : %s\n"
                "Adults          : %d\nChildren        : %d\nDistance        : %d km\nFare Paid       : Rs. %.2f\n"
                "Payment Status  : PAID\nBooking Time    : %s\n=============================================\n",
-               b->trainNumber, b->trainName, b->journeyDate, b->source, b->destination,
-               b->adults, b->children, b->distance, b->fare, b->bookedAt[0] ? b->bookedAt : "N/A");
+               booking->trainNumber, booking->trainName, booking->journeyDate, booking->source, booking->destination,
+               booking->adults, booking->children, booking->distance, booking->fare, booking->bookedAt[0] ? booking->bookedAt : "N/A");
         return;
     }
     printf("\n=============== RESERVED E-TICKET ===============\nPNR             : %s\nPassenger ID    : %d\nPassenger Name  : %s\nAge / Gender    : %d / %s\nTrain           : %d - %s\nSource          : %s\nDestination     : %s\nJourney Date    : %s\nDistance        : %d km\nClass           : %s\nFare Paid       : Rs. %.2f\nStatus          : %s\nBooking Time    : %s\n=================================================\n",
-           b->pnrNumber,b->passengerId,b->passengerName,b->age,b->gender,
-           b->trainNumber,b->trainName,b->source,b->destination,b->journeyDate,
-           b->distance,b->className,b->fare,statusName(b->ticketStatus), b->bookedAt[0] ? b->bookedAt : "N/A");
+           booking->pnrNumber, booking->passengerId, booking->passengerName,
+booking->age, booking->gender,
+booking->trainNumber, booking->trainName, booking->source,
+booking->destination, booking->journeyDate,
+booking->distance, booking->className, booking->fare,
+statusName(booking->ticketStatus),
+booking->bookedAt[0] ? booking->bookedAt : "N/A");
 }
 
 void initializeBookingModule(void) {
@@ -165,16 +263,12 @@ void loadBookingData(void) {
 #undef READ_LINE
 #undef READ_STR
 #undef READ_INT
-        continue;
-#undef READ_LINE
-#undef READ_STR
-#undef READ_INT
     }
     fclose(fp);
 }
 
 void bookTicket(int passengerId) {
-    Passenger *passenger=passengerFor(passengerId);
+    const Passenger *passenger=passengerFor(passengerId);
     if(!passenger){printf("Passenger profile not found. Create your profile before booking.\n");return;}
     char source[MAX_STATION_LEN],dest[MAX_STATION_LEN],date[11];
     getStringInput("Source station: ", source, sizeof source);
@@ -190,16 +284,16 @@ void bookTicket(int passengerId) {
     int matching=0;
     printf("\n--------------- AVAILABLE TRAINS ---------------\n");
     for(Train *t=trainHead;t;t=t->next) {
-        int a=stationIndex(t,source), b=stationIndex(t,dest); TrainSchedule *s=scheduleFor(t->trainNumber,date);
+        int a=stationIndex(t,source), b=stationIndex(t,dest); const TrainSchedule *s=scheduleFor(t->trainNumber,date);
         if(a<0||b<0||a>=b||!s||s->status==TRAIN_CANCELLED || !railway_reserved_cutoff_ok(date,t->stations[a].departureTime))continue;
         matching++; printf("\n%d  %s | Distance: %d km\n",t->trainNumber,t->trainName,distanceFor(t,a,b));
-        for(int i=0;i<t->classCount;i++) { Availability *av=findAvailability(t->trainNumber,date,t->coaches[i].className); printf("  %-5s ",t->coaches[i].className); if(!av)printf("No inventory"); else if(av->availableSeats>0)printf("Available: %d",av->availableSeats); else if(av->availableRAC>0)printf("RAC: %d",av->availableRAC); else if(av->availableWL<wlLimitFor(t,t->coaches[i].className))printf("WL: %d",av->availableWL+1); else printf("Not available"); printf("\n"); }
+        for(int i=0;i<t->classCount;i++) { const Availability *av=findAvailability(t->trainNumber,date,t->coaches[i].className); printf("  %-5s ",t->coaches[i].className); if(!av)printf("No inventory"); else if(av->availableSeats>0)printf("Available: %d",av->availableSeats); else if(av->availableRAC>0)printf("RAC: %d",av->availableRAC); else if(av->availableWL<wlLimitFor(t,t->coaches[i].className))printf("WL: %d",av->availableWL+1); else printf("Not available"); printf("\n"); }
     }
     if(!matching){printf("No scheduled trains found for this route/date. Check station spelling and schedule.\n");return;}
     int trainNo;
-    Train *train;
+    const Train *train;
     int si, di;
-    TrainSchedule *sch;
+    const TrainSchedule *sch;
     train = NULL; si = -1; di = -1; sch = NULL;
     for (int tries = 1; tries <= 3; ++tries) {
         trainNo = getIntegerInput("\nSelect train number from the list (0 to return): ");
@@ -211,9 +305,10 @@ void bookTicket(int passengerId) {
         if (tries == 3) return;
     }
     printf("\nSelected: %d %s\n",train->trainNumber,train->trainName);
-    for(int i=0;i<train->classCount;i++){Availability *av=findAvailability(trainNo,date,train->coaches[i].className); printf("%-5s ",train->coaches[i].className); if(!av)printf("No inventory"); else if(av->availableSeats>0)printf("Available: %d",av->availableSeats); else if(av->availableRAC>0)printf("RAC: %d",av->availableRAC); else if(av->availableWL<wlLimitFor(train,train->coaches[i].className))printf("WL: %d",av->availableWL+1); else printf("Not available"); printf("\n");}
+    for(int i=0;i<train->classCount;i++){const Availability *av=findAvailability(trainNo,date,train->coaches[i].className); printf("%-5s ",train->coaches[i].className); if(!av)printf("No inventory"); else if(av->availableSeats>0)printf("Available: %d",av->availableSeats); else if(av->availableRAC>0)printf("RAC: %d",av->availableRAC); else if(av->availableWL<wlLimitFor(train,train->coaches[i].className))printf("WL: %d",av->availableWL+1); else printf("Not available"); printf("\n");}
     char className[MAX_CLASS_LEN];
     Availability *av = NULL;
+
     float fare = -1.0f;
     av = NULL; fare = -1.0f;
     for (int tries = 1; tries <= 3; ++tries) {

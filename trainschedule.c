@@ -651,8 +651,9 @@ void updateTrainSchedule(void)
             }
 
             if (choice < 1 || choice > 4) { printf("Invalid schedule update choice.\n"); return; }
-            char confirm[8];
+            
             if (choice == 2) {
+                char confirm[8];
                 getStringInput("Confirm train cancellation? (Y/N): ", confirm, sizeof confirm);
                 if (strcmp(confirm, "Y") != 0 && strcmp(confirm, "y") != 0) { printf("Cancellation aborted.\n"); return; }
             }

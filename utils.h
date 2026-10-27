@@ -4,6 +4,10 @@
 #include "common.h"
 #include <setjmp.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Input exhaustion navigates to the active menu instead of leaving nested loops stuck. */
 void railway_set_navigation_target(jmp_buf *target);
 void railway_restore_navigation_target(jmp_buf *target);
@@ -21,5 +25,9 @@ void getStringInput(const char *message,
 float getFloatInput(
     const char *message);
 int isValidJourneyDate(const char *date);
+
+#ifdef __cplusplus
+}
+#endif
     
 #endif

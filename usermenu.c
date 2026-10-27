@@ -10,7 +10,7 @@
 
 void userMenu(int passengerId)
 {
-    int choice;
+    
     volatile int invalidChoices = 0;
     jmp_buf menu_env;
     railway_set_navigation_target(&menu_env);
@@ -18,6 +18,7 @@ void userMenu(int passengerId)
 
     while(1)
     {
+        int choice;
         printf("\n===== USER MENU =====");
 
         printf("\n1. Create Profile");

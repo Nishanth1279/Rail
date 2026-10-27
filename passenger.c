@@ -545,7 +545,7 @@ void searchPassenger(void)
     Passenger *current =
         passengerHead;
 
-    char phoneNumber[MAX_PHONE_LEN];
+
 
     choice =
         getIntegerInput(
@@ -601,6 +601,7 @@ void searchPassenger(void)
 
         case 2:
         {
+            char phoneNumber[MAX_PHONE_LEN];
             getValidPhoneNumber(
                 "Indian mobile number, 10 digits (e.g., 9876543210): ",
                 phoneNumber);

@@ -12,7 +12,7 @@
 
 void adminMenu(void)
 {
-    int choice;
+    
     volatile int invalidChoices = 0;
     jmp_buf menu_env;
 
@@ -22,6 +22,7 @@ void adminMenu(void)
 
     while(1)
     {
+        int choice;
         printf(
         "\n===== ADMIN MENU =====");
 

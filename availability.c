@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,10 +27,10 @@ static int supportedInventoryClass(const char *name)
 /* ---------------------------------------------------------
    FIND SCHEDULE
    --------------------------------------------------------- */
-static TrainSchedule *findScheduleForDate(int trainNumber,
+static const TrainSchedule *findScheduleForDate(int trainNumber,
                                           const char *journeyDate)
 {
-    TrainSchedule *current = scheduleHead;
+    const TrainSchedule *current = scheduleHead;
 
     while (current != NULL)
     {
@@ -106,7 +105,7 @@ void checkAvailability(void)
         printf("Invalid calendar date. Use DD:MM:YYYY, for example 24:10:2026.\n");
     }
 
-    TrainSchedule *schedule =
+    const TrainSchedule *schedule =
         findScheduleForDate(trainNumber, journeyDate);
 
     if (schedule == NULL)
@@ -146,7 +145,7 @@ void checkAvailability(void)
             }
             else
             {
-                Train *train = findTrain(current->trainNumber);
+                const Train *train = findTrain(current->trainNumber);
                 int wlLimit = 0;
 
                 if (train != NULL)
@@ -498,7 +497,7 @@ void loadAvailabilityData(void)
         }
 
         if (!supportedInventoryClass(record.className) || !findScheduleForDate(record.trainNumber, record.journeyDate)) valid = 0;
-        Train *inventoryTrain = findTrain(record.trainNumber);
+        const Train *inventoryTrain = findTrain(record.trainNumber);
         int classFound = 0;
         if (inventoryTrain) for (int ci = 0; ci < inventoryTrain->classCount; ++ci)
             if (strcmp(inventoryTrain->coaches[ci].className, record.className) == 0) {

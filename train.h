@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+
+
 extern Train *trainHead;
 
 void initializeTrainModule(void);
@@ -24,6 +26,7 @@ void updateTrain(void);
 void deleteTrain(void);
 
 void applyTrainDelay(Train *train,int delayMinutes);
+
 
 
 #endif

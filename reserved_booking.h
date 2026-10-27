@@ -1,6 +1,11 @@
 #ifndef BOOKING_H
 #define BOOKING_H
 #include "common.h"
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 typedef struct Booking {
     char pnrNumber[20];
     int passengerId;
@@ -31,4 +36,9 @@ void generateBookingPNR(char out[20]);
 void printBookingTicket(const Booking *booking);
 void viewMyBookings(int passengerId);
 void cancelTicket(int passengerId);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

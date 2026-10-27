@@ -15,7 +15,7 @@ int loggedInPassengerId = FAILURE;
 
 int main(void)
 {
-    int choice;
+    
     volatile int invalidChoices = 0;
     jmp_buf main_env;
 
@@ -38,6 +38,7 @@ int main(void)
 
     while(1)
     {
+        int choice;
         railway_set_navigation_target(&main_env);
         printf(
         "\n========== MAIN MENU ==========");

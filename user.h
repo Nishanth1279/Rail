@@ -3,6 +3,11 @@
 
 #include "common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 typedef struct User
 {
     int passengerId;
@@ -27,5 +32,11 @@ void saveUserData(void);
 int registerUser(void);
 
 int loginUser(void);
+
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
